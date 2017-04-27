@@ -1,22 +1,143 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 26 15:18:33 2017
+
+@author: mulugetasemework
+"""
+
 import os
 import glob
-import pandas
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
-def concatenate():
-    os.chdir(" ")
-    fileList=glob.glob("*.csv")
-    muluFiles = []
-    for filename in fileList:
-        print(filename)
-        df = pandas.read_csv(filename,low_memory=False)
-        muluFiles.append(df)
-    return muluFiles
 
-muluFiles = concatenate()
-print("data brung, now showing data ...")
+from sklearn import decomposition
 
-df = pd.DataFrame(muluFiles)
+path = "/Documents/DATA_current/ResponseCSVs"
+
+#bring in and catenate spreadsheets
+all_files = glob.glob(os.path.join(path, "*.csv")) 
+
+
+df_from_each_file = (pd.read_csv(f) for f in all_files)
+df = pd.concat(df_from_each_file, ignore_index=True)
+print("CSVs catenated")
+
+#Header = list(df.columns.values)
+
+
+#figures ----------------------------------------------------------------------
+plt.figure(1)
+f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+#f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, sharex='col', sharey='row')
+#figures ----------------------------------------------------------------------
+ax1.hist(df.pMemoBase_ranksum , bins=10)
+ax1.set_title('Mem vs baseMax ranksum p-values',fontsize=10)
+ax1.set_xlabel('p-values',fontsize=9)
+ax1.set_ylabel('Count',fontsize=9)
+ax1.tick_params(axis='both', which='major', labelsize=7)
+ax1.tick_params(axis='both', which='minor', labelsize=7)
+
+
+ax2.scatter(df.basePSTH_PREMEAN2, df.pMemoBase_ranksum,
+           s=30, color='g', marker='o', alpha=.3)
+ax2.set_title('BaseRate vs Memory',fontsize=10)
+ax2.set_xlabel('Base rate (spikes/sec)',fontsize=8)
+ax2.set_ylabel('Mem p-values',fontsize=8)
+
+slope, intercept = np.polyfit(df.basePSTH_PREMEAN2, df.pMemoBase_ranksum,1)
+# Create a list of values in the best fit line
+abline_values = [slope * i + intercept for i in df.basePSTH_PREMEAN2]
+ax2.plot(df.basePSTH_PREMEAN2, abline_values, 'r')
+ax2.legend(['polyfit','data'], loc=1,fontsize=7)
+ax2.tick_params(axis='both', which='major', labelsize=7)
+ax2.tick_params(axis='both', which='minor', labelsize=7)
+
+ax3.scatter(df.pVisVis_MAX_ranksum, df.pMemoBase_ranksum,
+           s=30, color='m', marker='o', alpha=.3)
+ax3.set_title('visualPval vs Memory',fontsize=10)
+ax3.set_xlabel('visPre vs postSaccadic (pValue)',fontsize=9)
+ax3.set_ylabel('Mem p-values',fontsize=9)
+slope, intercept = np.polyfit(df.pVisVis_MAX_ranksum, df.pMemoBase_ranksum,1)
+# Create a list of values in the best fit line
+abline_values = [slope * i + intercept for i in df.pVisVis_MAX_ranksum]
+ax3.plot(df.pVisVis_MAX_ranksum, abline_values, 'r')
+ax3.legend(['polyfit','data'], loc=1,fontsize=7)
+ax3.tick_params(axis='both', which='major', labelsize=7)
+ax3.tick_params(axis='both', which='minor', labelsize=7)
+
+
+ax4.scatter(df.base_memMeanMEDIAN2, df.memPSTH_memMeanMEDIAN2,
+           s=30, color='b', marker='o', alpha=.3)
+ax4.set_title('base vs Memory Median',fontsize=10)
+ax4.set_xlabel('Basline median',fontsize=8)
+ax4.set_ylabel('Mem median',fontsize=8)
+slope, intercept = np.polyfit(df.base_memMeanMEDIAN2, df.memPSTH_memMeanMEDIAN2,1)
+# Create a list of values in the best fit line
+abline_values = [slope * i + intercept for i in df.base_memMeanMEDIAN2]
+ax4.plot(df.base_memMeanMEDIAN2, abline_values, 'r')
+ax4.legend(['polyfit','data'], loc=4,fontsize=7)
+ax4.tick_params(axis='both', which='major', labelsize=7)
+ax4.tick_params(axis='both', which='minor', labelsize=7)
+
+
+f.subplots_adjust(hspace=.9)
+f.subplots_adjust(wspace=.9)
+
+plt.show()
+
+f.savefig('/Documents/DATA_current/ResponseCSVs/NeuralIndicators.pdf')
+
+
+#END figures ----------------------------------------------------------------------
+
+memClass = []
+for d in range(len(df.base_memMeanMEDIAN2)):
+  if df.pMemoBase_MED_ranksum2[d] < 0.05:
+     memClass.append(0)
+  elif ((df.pMemoBase_ranksum[d]  > 0.05) & (df.pMemoBase_ranksum[d] < 1)):
+     memClass.append(1)
+  else:
+     memClass.append(2)
+
+
+
+np.random.seed(5)
+
+centers = [[1, 1], [-1, -1], [1, -1]]
+
+X = pd.DataFrame({'median': df.base_memMeanMEDIAN2,'mean': df.basePSTH_PREMEAN2,
+                  'visMax':df.pVisVis_MAX_ranksum,'max':df.baseMEMmaxRAW})
+pca = decomposition.PCA(n_components=3)
+pca.fit(X)
+X = pca.transform(X)
+
+
+y = memClass
+categories = np.array(y)
+colormap = np.array(['r', 'g', 'b'])
+legendlabels= ('Good Memory', 'No Memory', 'Undecided')
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+
+goM = ax.scatter(X[:, 0], X[:, 1], X[:, 2],s=200,  marker='o', color='r',  alpha=.3,label='Good Memory')
+NogoM = ax.scatter(X[:, 0], X[:, 1], X[:, 2],s=200, marker='o', color='g',  alpha=.3,label='No Memory')
+UngoM = ax.scatter(X[:, 0], X[:, 1], X[:, 2],s=200, marker='o',  color='b',  alpha=.3,label='Undecided')
+ax.scatter(X[:, 0], X[:, 1], X[:, 2],s=200, alpha=.3, 
+c=colormap[categories])
+
+
+
+ax.w_xaxis.set_ticklabels([])
+ax.w_yaxis.set_ticklabels([])
+ax.w_zaxis.set_ticklabels([])
+
+ax.set_title( "PCA classification of memory responses \n based on baseline median, mean and max firing rates, \n and visual responses", fontsize=12)
+ax.legend(loc=8,fontsize=8)
+#ax.view_init(elev=5., azim=34)
+fig.savefig('/Documents/DATA_current/ResponseCSVs/NeuralPCAMemory.pdf')
+
